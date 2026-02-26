@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PromptForge — AI Prompt Generation Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --primary: #00ffcc;
+  --primary-dim: rgba(0,255,204,0.12);
+  --secondary: #7c3aed;
+  --accent: #ff006e;
+  --accent2: #ffd60a;
+  --bg: #030712;
+  --surface: #0d1117;
+  --s2: #161b22;
+  --s3: #1c2333;
+  --text: #e6edf3;
+  --dim: #7d8590;
+  --border: rgba(0,255,204,0.15);
+  --glow: 0 0 20px rgba(0,255,204,0.25);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Syne',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;overflow-y:auto}
+
+/* 3D Canvas */
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+/* Layout */
+#app{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border);background:rgba(3,7,18,0.9);backdrop-filter:blur(20px);position:sticky;top:0;z-index:100}
+.logo{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;color:var(--primary);letter-spacing:0.05em;text-shadow:var(--glow);display:flex;align-items:center;gap:0.5rem}
+.logo-dot{width:8px;height:8px;background:var(--accent);border-radius:50%;box-shadow:0 0 8px var(--accent);animation:pdot 2s ease-in-out infinite}
+@keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.6)}}
+.hdr-right{display:flex;align-items:center;gap:0.75rem}
+.mode-badge{font-family:'Space Mono',monospace;font-size:0.62rem;padding:0.25rem 0.65rem;border-radius:4px;letter-spacing:0.08em;text-transform:uppercase}
+.mb-static{color:var(--primary);border:1px solid var(--primary);background:var(--primary-dim)}
+.mb-gemini{color:var(--accent2);border:1px solid var(--accent2);background:rgba(255,214,10,0.08)}
+.mb-hide{display:none}
+.icon-btn{background:transparent;border:1px solid var(--border);color:var(--dim);width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;transition:all 0.2s}
+.icon-btn:hover{border-color:var(--primary);color:var(--primary)}
+
+/* Main */
+main{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem}
+.screen{display:none;width:100%;max-width:760px;animation:sin 0.35s ease forwards}
+.screen.active{display:block}
+@keyframes sin{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+
+/* Progress */
+.prog-wrap{margin-bottom:1.5rem}
+.prog-top{display:flex;justify-content:space-between;margin-bottom:0.5rem}
+.prog-lbl{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase}
+.prog-num{font-family:'Orbitron',monospace;font-size:0.68rem;color:var(--primary)}
+.prog-bar{height:3px;background:var(--s2);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--secondary),var(--primary));border-radius:2px;transition:width 0.5s cubic-bezier(0.4,0,0.2,1);box-shadow:0 0 8px var(--primary)}
+
+/* Card */
+.card{background:rgba(13,17,23,0.88);border:1px solid var(--border);border-radius:16px;padding:2rem;backdrop-filter:blur(20px);box-shadow:0 4px 40px rgba(0,0,0,0.5)}
+.step-tag{font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem}
+.step-tag::before{content:'';display:inline-block;width:14px;height:1px;background:var(--accent)}
+.step-title{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:700;color:var(--text);margin-bottom:0.4rem;line-height:1.3}
+.step-sub{font-size:0.85rem;color:var(--dim);margin-bottom:1.5rem;line-height:1.6}
+
+/* Options */
+.opts{display:grid;gap:0.6rem;margin-bottom:1.5rem}
+.opts.c2{grid-template-columns:1fr 1fr}
+.opts.c1{grid-template-columns:1fr}
+.opt{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:0.85rem 1rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:0.75rem;color:var(--text);font-family:'Syne',sans-serif;font-size:0.88rem;transition:all 0.18s;width:100%}
+.opt:hover{border-color:var(--primary);background:var(--primary-dim);box-shadow:var(--glow)}
+.opt.sel{border-color:var(--primary);background:var(--primary-dim);box-shadow:var(--glow)}
+.opt.sel .onum{background:var(--primary);color:var(--bg)}
+.onum{font-family:'Space Mono',monospace;font-size:0.65rem;width:24px;height:24px;border-radius:5px;background:var(--s3);display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid var(--border);transition:all 0.18s}
+.oico{font-size:1rem;flex-shrink:0}
+.olbl{flex:1;font-weight:500}
+.osub{font-size:0.72rem;color:var(--dim);margin-top:0.15rem;font-weight:400}
+/* Multi select check */
+.ochk{width:16px;height:16px;border:1.5px solid var(--border);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:0.65rem;transition:all 0.18s}
+.opt.sel .ochk{background:var(--primary);border-color:var(--primary);color:var(--bg)}
+
+/* Niche labels */
+.niche-lbl{font-family:'Space Mono',monospace;font-size:0.58rem;letter-spacing:0.1em;text-transform:uppercase;padding:0.25rem 0.55rem;border-radius:4px;display:inline-block;margin-bottom:0.5rem}
+.nl-est{color:var(--primary);background:var(--primary-dim);border:1px solid rgba(0,255,204,0.2)}
+.nl-trnd{color:var(--accent);background:rgba(255,0,110,0.08);border:1px solid rgba(255,0,110,0.2)}
+.niche-note{font-size:0.7rem;color:var(--dim);margin-top:0.4rem;font-style:italic}
+
+/* Buttons */
+.btn-row{display:flex;gap:0.65rem;align-items:center;flex-wrap:wrap}
+.btn{font-family:'Orbitron',monospace;font-size:0.68rem;font-weight:700;letter-spacing:0.07em;padding:0.7rem 1.4rem;border-radius:8px;border:none;cursor:pointer;transition:all 0.2s;text-transform:uppercase;display:inline-flex;align-items:center;gap:0.4rem}
+.btn-p{background:var(--primary);color:var(--bg);box-shadow:0 4px 16px rgba(0,255,204,0.25)}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,255,204,0.45)}
+.btn-p:disabled{opacity:0.35;cursor:not-allowed;transform:none}
+.btn-s{background:transparent;color:var(--dim);border:1px solid var(--border)}
+.btn-s:hover{border-color:var(--dim);color:var(--text)}
+.btn-g{background:transparent;color:var(--accent);border:1px solid rgba(255,0,110,0.25);font-size:0.62rem}
+.btn-g:hover{background:rgba(255,0,110,0.08);border-color:var(--accent)}
+.btn-v{background:var(--secondary);color:white;box-shadow:0 4px 16px rgba(124,58,237,0.25)}
+.btn-v:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(124,58,237,0.45)}
+
+/* Home Screen */
+#s-home{max-width:860px}
+.hero{text-align:center;margin-bottom:2.5rem}
+.hero-eye{font-family:'Space Mono',monospace;font-size:0.62rem;color:var(--primary);letter-spacing:0.2em;text-transform:uppercase;margin-bottom:0.9rem;animation:fin 0.5s ease 0.2s both}
+.hero-h{font-family:'Orbitron',monospace;font-size:clamp(1.8rem,5vw,3rem);font-weight:900;line-height:1.1;margin-bottom:0.9rem;animation:fin 0.5s ease 0.4s both}
+.hl{color:var(--primary);text-shadow:var(--glow)}
+.hl2{color:var(--accent)}
+.hero-sub{font-size:0.95rem;color:var(--dim);max-width:480px;margin:0 auto 2rem;line-height:1.7;animation:fin 0.5s ease 0.6s both}
+@keyframes fin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+/* Mode Cards - FIXED: using button elements, no ::before overlay blocking clicks */
+.mode-cards{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;animation:fin 0.5s ease 0.8s both}
+.mcard{background:rgba(13,17,23,0.88);border:1px solid var(--border);border-radius:18px;padding:2rem 1.75rem;cursor:pointer;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);text-align:center;backdrop-filter:blur(20px);width:100%;font-family:'Syne',sans-serif;color:var(--text);position:relative}
+.mcard:hover{transform:translateY(-4px)}
+.mcard.mc-s:hover{border-color:var(--primary);box-shadow:0 12px 40px rgba(0,255,204,0.18)}
+.mcard.mc-g:hover{border-color:var(--accent2);box-shadow:0 12px 40px rgba(255,214,10,0.18)}
+.mc-ico{font-size:2.2rem;margin-bottom:0.85rem;display:block}
+.mc-title{font-family:'Orbitron',monospace;font-size:1rem;font-weight:700;margin-bottom:0.3rem}
+.mc-s .mc-title{color:var(--primary)}
+.mc-g .mc-title{color:var(--accent2)}
+.mc-sub{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--dim);letter-spacing:0.08em;margin-bottom:0.75rem}
+.mc-desc{font-size:0.82rem;color:var(--dim);line-height:1.6;margin-bottom:1.25rem}
+.mc-cta{display:inline-block;font-family:'Orbitron',monospace;font-size:0.65rem;font-weight:700;letter-spacing:0.1em;padding:0.55rem 1.2rem;border-radius:6px;text-transform:uppercase}
+.mc-s .mc-cta{background:var(--primary);color:var(--bg)}
+.mc-g .mc-cta{background:var(--accent2);color:var(--bg)}
+
+/* Summary Table */
+.sum-table{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.25rem;font-family:'Space Mono',monospace;font-size:0.75rem}
+.sum-hdr{background:var(--primary-dim);border-bottom:1px solid var(--border);padding:0.65rem 1rem;color:var(--primary);font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase}
+.sum-row{display:flex;padding:0.6rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04);gap:1rem;align-items:center}
+.sum-row:last-child{border-bottom:none}
+.sum-k{color:var(--dim);min-width:130px;font-size:0.68rem}
+.sum-v{color:var(--primary);font-weight:700}
+
+/* Output */
+.out-block{background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:0.85rem}
+.out-bh{display:flex;align-items:center;gap:0.65rem;margin-bottom:0.85rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border)}
+.out-tag{font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;background:rgba(255,0,110,0.08);padding:0.2rem 0.55rem;border-radius:3px;border:1px solid rgba(255,0,110,0.2)}
+.out-name{font-family:'Orbitron',monospace;font-size:0.82rem;font-weight:700;color:var(--primary)}
+.prompt-txt{font-family:'Space Mono',monospace;font-size:0.72rem;line-height:1.9;color:var(--text);white-space:pre-wrap;word-break:break-word}
+
+/* Workflow summary */
+.wf-sum{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:1.25rem}
+.wf-sum-h{background:rgba(124,58,237,0.1);border-bottom:1px solid var(--border);padding:0.65rem 1rem;font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--secondary);letter-spacing:0.15em;text-transform:uppercase}
+.wf-sum table{width:100%;border-collapse:collapse;font-family:'Space Mono',monospace;font-size:0.7rem}
+.wf-sum td{padding:0.55rem 1rem;border-bottom:1px solid rgba(255,255,255,0.04)}
+.wf-sum td:first-child{color:var(--dim);width:42%}
+.wf-sum td:last-child{color:var(--text)}
+.wf-sum tr:last-child td{border-bottom:none}
+
+/* Loading */
+.loading{display:none;position:fixed;inset:0;background:rgba(3,7,18,0.88);backdrop-filter:blur(12px);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:1.25rem}
+.loading.on{display:flex}
+.spin{width:44px;height:44px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp 0.75s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.load-txt{font-family:'Orbitron',monospace;font-size:0.75rem;color:var(--primary);letter-spacing:0.1em;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(3,7,18,0.88);backdrop-filter:blur(12px);z-index:300;align-items:center;justify-content:center}
+.modal-bg.on{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:1.75rem;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.6);animation:min 0.3s ease}
+@keyframes min{from{opacity:0;transform:scale(0.95) translateY(-8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+.modal-title{font-family:'Orbitron',monospace;font-size:0.95rem;font-weight:700}
+.modal-x{background:transparent;border:none;color:var(--dim);font-size:1.1rem;cursor:pointer;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:all 0.2s}
+.modal-x:hover{background:var(--s2);color:var(--text)}
+.fg{margin-bottom:1rem}
+.flbl{display:block;font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.4rem}
+.finp{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:0.65rem 0.9rem;color:var(--text);font-family:'Space Mono',monospace;font-size:0.75rem;outline:none;transition:border-color 0.2s}
+.finp:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(0,255,204,0.08)}
+.fhint{font-size:0.7rem;color:var(--dim);margin-top:0.35rem;line-height:1.5}
+.fhint a{color:var(--primary);text-decoration:none}
+.fhint a:hover{text-decoration:underline}
+
+/* Error Banner */
+.err-ban{background:rgba(255,0,110,0.08);border:1px solid rgba(255,0,110,0.25);border-radius:8px;padding:0.85rem 1rem;margin-bottom:1rem;font-size:0.82rem;color:var(--accent);display:none;align-items:flex-start;gap:0.65rem}
+.err-ban.on{display:flex}
+
+/* Toast */
+.toast{position:fixed;bottom:1.75rem;right:1.75rem;background:var(--surface);border:1px solid var(--primary);border-radius:8px;padding:0.65rem 1rem;font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--primary);z-index:400;opacity:0;transform:translateY(8px);transition:all 0.28s;pointer-events:none;box-shadow:var(--glow),0 8px 28px rgba(0,0,0,0.4)}
+.toast.on{opacity:1;transform:translateY(0)}
+.toast.err{border-color:var(--accent);color:var(--accent)}
+
+/* Print */
+@media print{#bg-canvas,header,.btn-row,.prog-wrap,.btn-row{display:none!important}body{background:#fff!important;color:#000!important}.card,.out-block{background:#fff!important;border:1px solid #ddd!important}.prompt-txt,.out-name{color:#000!important}}
+
+/* Responsive */
+@media(max-width:620px){.mode-cards{grid-template-columns:1fr}.opts.c2{grid-template-columns:1fr}.card{padding:1.25rem}header{padding:0.85rem}.hero-h{font-size:1.6rem}.btn-row{flex-direction:column}.btn{width:100%;justify-content:center}}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo"><div class="logo-dot"></div>PromptForge</div>
+  <div class="hdr-right">
+    <span class="mode-badge mb-hide" id="mode-badge"></span>
+    <button class="icon-btn" id="btn-settings" style="display:none" title="Settings">⚙</button>
+  </div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <div class="screen active" id="s-home">
+    <div class="hero">
+      <div class="hero-eye">AI Prompt Generation Studio</div>
+      <h1 class="hero-h">Generate <span class="hl">Expert</span><br>Prompts from Your <span class="hl2">Workflow</span></h1>
+      <p class="hero-sub">Answer simple questions about your content. Get a complete, copy-paste ready AI prompt — built for your exact niche, platform, and tone.</p>
+    </div>
+    <div class="mode-cards">
+      <button class="mcard mc-s" id="btn-static">
+        <span class="mc-ico">⚡</span>
+        <div class="mc-title">Static Mode</div>
+        <div class="mc-sub">No API Key Required</div>
+        <div class="mc-desc">Instant results using smart pre-built niche templates. Works offline. Zero setup.</div>
+        <span class="mc-cta">Start Free →</span>
+      </button>
+      <button class="mcard mc-g" id="btn-gemini">
+        <span class="mc-ico">🤖</span>
+        <div class="mc-title">Gemini AI Mode</div>
+        <div class="mc-sub">Powered by Google Gemini</div>
+        <div class="mc-desc">Dynamic AI-generated prompts using your free Gemini API key. Maximum intelligence.</div>
+        <span class="mc-cta">Use Gemini →</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- WIZARD -->
+  <div class="screen" id="s-wizard">
+    <div class="prog-wrap" id="prog-wrap">
+      <div class="prog-top">
+        <span class="prog-lbl" id="prog-lbl">Step 1</span>
+        <span class="prog-num" id="prog-num">1 / 7</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:14%"></div></div>
+    </div>
+    <div class="card" id="step-box"></div>
+  </div>
+
+  <!-- CONFIRM -->
+  <div class="screen" id="s-confirm">
+    <div class="card">
+      <div class="step-tag">Review Your Selections</div>
+      <h2 class="step-title">Confirm & Continue</h2>
+      <p class="step-sub">Check your choices below. Everything correct?</p>
+      <div class="sum-table">
+        <div class="sum-hdr">📋 Your Selections Summary</div>
+        <div id="sum-rows"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-p" onclick="goToPromptSelect()">✓ Confirm & Continue</button>
+        <button class="btn btn-s" onclick="backToWizard()">← Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROMPT SELECT -->
+  <div class="screen" id="s-pselect">
+    <div class="card">
+      <div class="step-tag">Final Step</div>
+      <h2 class="step-title">Select Prompts to Generate</h2>
+      <p class="step-sub">Choose one or more. Only selected prompts will be generated.</p>
+      <div class="opts c1" id="psel-opts" style="margin-bottom:1rem"></div>
+      <div class="err-ban" id="psel-err"><span>⚠</span><span>Please select at least one prompt.</span></div>
+      <div class="btn-row" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
+        <button class="btn btn-p" onclick="doGenerate()">⚡ Generate Prompts</button>
+        <button class="btn btn-s" onclick="showScreen('s-confirm')">← Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="screen" id="s-output">
+    <div class="card">
+      <div class="step-tag">Generated</div>
+      <h2 class="step-title">Your Prompts Are Ready</h2>
+      <div class="err-ban" id="out-err"></div>
+      <div id="out-prompts"></div>
+      <div class="btn-row" style="margin-top:1.25rem">
+        <button class="btn btn-p" onclick="copyAll()">📋 Copy All</button>
+        <button class="btn btn-v" onclick="window.print()">⬇ Download PDF</button>
+        <button class="btn btn-s" onclick="restart()">↺ Start Over</button>
+      </div>
+      <div id="wf-sum-box"></div>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div class="modal-bg" id="modal-settings">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-title">⚙ Settings</span>
+      <button class="modal-x" onclick="closeModal()">✕</button>
+    </div>
+    <div class="fg">
+      <label class="flbl">Current Mode</label>
+      <div style="font-family:'Space Mono',monospace;font-size:0.78rem;color:var(--primary)" id="modal-mode-txt">—</div>
+    </div>
+    <div class="fg">
+      <label class="flbl">Gemini API Key</label>
+      <input type="password" class="finp" id="api-inp" placeholder="AIza...">
+      <div class="fhint">Get your free key at <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> — No credit card needed.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-p" onclick="saveKey()" style="font-size:0.62rem;padding:0.6rem 1.1rem">Save Key</button>
+      <button class="btn btn-g" onclick="clearKey()">Clear Key</button>
+    </div>
+    <div style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border)">
+      <button class="btn btn-s" onclick="switchMode()" style="font-size:0.62rem;width:100%;justify-content:center">Switch to <span id="switch-lbl">Static</span> Mode</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading" id="loading">
+  <div class="spin"></div>
+  <div class="load-txt">Generating your prompts...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════
+// THREE.JS BACKGROUND
+// ═══════════════════════════════════════
+(function(){
+  const cv = document.getElementById('bg-canvas');
+  const rnd = new THREE.WebGLRenderer({canvas:cv,alpha:true,antialias:false});
+  rnd.setPixelRatio(Math.min(devicePixelRatio,1.5));
+  rnd.setSize(innerWidth,innerHeight);
+  const sc = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,1000);
+  cam.position.z = 80;
+  const N = 55;
+  const geo = new THREE.SphereGeometry(0.38,6,6);
+  const nodes = [], pos = [];
+  for(let i=0;i<N;i++){
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0x00ffcc,transparent:true,opacity:0.25+Math.random()*0.35}));
+    m.position.set((Math.random()-0.5)*150,(Math.random()-0.5)*90,(Math.random()-0.5)*55);
+    nodes.push(m); pos.push(m.position.clone()); sc.add(m);
+  }
+  const lp = [];
+  for(let i=0;i<N;i++) for(let j=i+1;j<N;j++) if(pos[i].distanceTo(pos[j])<26){lp.push(pos[i].x,pos[i].y,pos[i].z,pos[j].x,pos[j].y,pos[j].z)}
+  const lg = new THREE.BufferGeometry();
+  lg.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
+  sc.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x00ffcc,transparent:true,opacity:0.055})));
+  const ph = nodes.map(()=>Math.random()*Math.PI*2);
+  function anim(){
+    requestAnimationFrame(anim);
+    const t = Date.now()*0.0005;
+    sc.rotation.y = t*0.07; sc.rotation.x = Math.sin(t*0.04)*0.08;
+    nodes.forEach((n,i)=>{ph[i]+=0.011;n.material.opacity=0.12+Math.abs(Math.sin(ph[i]))*0.3;n.scale.setScalar(0.85+Math.abs(Math.sin(ph[i]*0.65))*0.45)});
+    rnd.render(sc,cam);
+  }
+  anim();
+  window.addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();rnd.setSize(innerWidth,innerHeight)});
+})();
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+const ST = { mode:null, path:null, sel:{}, selPrompts:[], history:[] };
+
+// ═══════════════════════════════════════
+// STEPS DEFINITION
+// ═══════════════════════════════════════
+const STEPS = {
+  s1:{id:'s1',tag:'Step 1 of 7',title:'What type of content are you creating?',sub:'Select your content type to begin.',key:'contentType',type:'single',
+    opts:[{ico:'🎬',lbl:'Video',sub:'YouTube, TikTok, Instagram, LinkedIn'},{ico:'🖼️',lbl:'Image',sub:'AI image generation prompts'},{ico:'📝',lbl:'Text',sub:'Blog, Article, Newsletter, Social'}]},
+  // PATH A
+  s2A:{id:'s2A',tag:'Step 2 — Video',title:'Which platform?',sub:'Select where this video will be published.',key:'platform',type:'single',
+    opts:[{ico:'▶',lbl:'YouTube',sub:'Long or short-form'},{ico:'♪',lbl:'TikTok',sub:'Short-form, trending'},{ico:'📸',lbl:'Instagram',sub:'Reels, Stories'},{ico:'💼',lbl:'LinkedIn',sub:'Professional video'},{ico:'🌐',lbl:'Other',sub:'Custom platform'}]},
+  s3A:{id:'s3A',tag:'Step 3 — Format',title:'Video format?',sub:'This shapes script structure, pacing, and hook strategy.',key:'format',type:'single',
+    opts:[{ico:'🎞',lbl:'Long-Form',sub:'5 minutes and above'},{ico:'⚡',lbl:'Short-Form',sub:'Under 90 seconds — Reels / Shorts / TikTok'}]},
+  s4A:{id:'s4A',tag:'Step 4 — Niche',title:'Select your niche',sub:'Your niche determines the quality of your generated prompt.',key:'niche',type:'niche'},
+  s5A:{id:'s5A',tag:'Step 5 — Tone',title:'What is the tone?',sub:'Tone shapes the emotional energy and delivery style.',key:'tone',type:'single',
+    opts:[{ico:'🎓',lbl:'Educational',sub:'Teach, explain, simplify'},{ico:'😄',lbl:'Entertaining',sub:'Engage, delight, hook'},{ico:'💪',lbl:'Motivational',sub:'Inspire, push, challenge'},{ico:'📊',lbl:'Informational',sub:'Report, update, inform'},{ico:'📖',lbl:'Storytelling / Personal',sub:'Narrative, journey, authentic'}]},
+  s6A:{id:'s6A',tag:'Step 6 — Script Style',title:'Script style?',sub:'This determines the structure of the generated script.',key:'scriptStyle',type:'single',
+    opts:[{ico:'🎣',lbl:'Hook-Based',sub:'Viral opening structure'},{ico:'📖',lbl:'Storytelling',sub:'Narrative arc'},{ico:'🔧',lbl:'Tutorial / Step-by-Step',sub:'How-to format'},{ico:'📋',lbl:'Listicle',sub:'Top 5 / 7 / 10 format'},{ico:'🎤',lbl:'Talking Head',sub:'Direct-to-camera'}]},
+  s7A:{id:'s7A',tag:'Step 7 — Language',title:'Script language?',sub:'The generated script will be written in this language.',key:'language',type:'single',
+    opts:[{ico:'🇺🇸',lbl:'English'},{ico:'🇵🇰',lbl:'Urdu'},{ico:'🔀',lbl:'Hinglish',sub:'Hindi + English mix'},{ico:'🌐',lbl:'Other'}]},
+  // PATH B
+  s2B:{id:'s2B',tag:'Step 2 — Image',title:'Which AI image model?',sub:'Each model has different prompt syntax and strengths.',key:'aiModel',type:'single',
+    opts:[{ico:'🟢',lbl:'ChatGPT / DALL·E'},{ico:'🔵',lbl:'Gemini'},{ico:'⚡',lbl:'Grok'},{ico:'🎨',lbl:'Midjourney',sub:'Uses -- parameters'},{ico:'🧠',lbl:'Stable Diffusion',sub:'Open source'},{ico:'🌊',lbl:'Seaart / Seed Dance'},{ico:'🌐',lbl:'Other'}]},
+  s3B:{id:'s3B',tag:'Step 3 — Image Type',title:'What type of image?',sub:'This determines composition and subject focus.',key:'imageType',type:'single',
+    opts:[{ico:'📷',lbl:'Realistic / Photographic'},{ico:'🎨',lbl:'Illustration / Artwork'},{ico:'📊',lbl:'Infographic / Data Visual'},{ico:'📌',lbl:'Poster / Banner / Thumbnail'},{ico:'💭',lbl:'Concept / Abstract'}]},
+  s4B:{id:'s4B',tag:'Step 4 — Visual Style',title:'Visual style?',sub:'Style defines the overall aesthetic of the image.',key:'visualStyle',type:'single',
+    opts:[{ico:'🎬',lbl:'Cinematic'},{ico:'⬜',lbl:'Minimalist'},{ico:'🌸',lbl:'Cartoon / Anime'},{ico:'🧊',lbl:'3D Render'},{ico:'📐',lbl:'Flat Design'},{ico:'🌑',lbl:'Dark & Moody'},{ico:'☀️',lbl:'Bright & Clean'}]},
+  s5B:{id:'s5B',tag:'Step 5 — Mood',title:'Select the mood',sub:'Mood shapes the emotional feeling of the final image.',key:'mood',type:'single',
+    opts:[{ico:'⚡',lbl:'Dramatic / Intense'},{ico:'☕',lbl:'Warm & Inviting'},{ico:'🏢',lbl:'Cold & Corporate'},{ico:'✨',lbl:'Dreamy / Ethereal'},{ico:'🔥',lbl:'Bold & Energetic'},{ico:'🍃',lbl:'Calm & Minimal'}]},
+  s6B:{id:'s6B',tag:'Step 6 — Depth',title:'Prompt depth?',sub:'Ultra includes model-specific parameters and negative prompts.',key:'promptDepth',type:'single',
+    opts:[{ico:'1️⃣',lbl:'Simple',sub:'Clean, basic — quick generation'},{ico:'2️⃣',lbl:'Standard',sub:'Balanced detail with style cues'},{ico:'3️⃣',lbl:'Ultra',sub:'Full composition, lighting, camera, negative prompts + model parameters'}]},
+  // PATH C
+  s2C:{id:'s2C',tag:'Step 2 — Text',title:'Content format?',sub:'Format determines structure, length, and platform optimization.',key:'textFormat',type:'single',
+    opts:[{ico:'📝',lbl:'Blog Post'},{ico:'𝕏',lbl:'X / Twitter Thread'},{ico:'📰',lbl:'Article'},{ico:'📧',lbl:'Newsletter'},{ico:'💼',lbl:'LinkedIn Post'},{ico:'🌐',lbl:'Other'}]},
+  s3C:{id:'s3C',tag:'Step 3 — Niche',title:'Content niche?',sub:'Be specific — your niche determines everything about the generated prompt.',key:'niche',type:'niche'},
+  s4C:{id:'s4C',tag:'Step 4 — Tone',title:'Writing tone?',sub:'Tone shapes how the content feels to the reader.',key:'tone',type:'single',
+    opts:[{ico:'👔',lbl:'Professional'},{ico:'☕',lbl:'Casual / Conversational'},{ico:'🎯',lbl:'Persuasive'},{ico:'🎓',lbl:'Educational'},{ico:'😄',lbl:'Humorous / Witty'},{ico:'🌟',lbl:'Inspirational'}]},
+  s5C:{id:'s5C',tag:'Step 5 — Length',title:'Target length?',sub:'Skipped automatically for X/Twitter.',key:'length',type:'single',
+    opts:[{ico:'⚡',lbl:'Short',sub:'300–600 words'},{ico:'📄',lbl:'Medium',sub:'800–1200 words'},{ico:'📚',lbl:'Long',sub:'1500–2500 words'},{ico:'🔬',lbl:'Deep Dive',sub:'3000+ words'}]},
+  s6C:{id:'s6C',tag:'Step 6 — Audience',title:'Target audience?',sub:'Audience level determines vocabulary and depth.',key:'audience',type:'single',
+    opts:[{ico:'👶',lbl:'Beginners / General Public'},{ico:'📖',lbl:'Intermediate'},{ico:'🧠',lbl:'Experts / Professionals'},{ico:'🎯',lbl:'Niche Community'}]},
+  s7C:{id:'s7C',tag:'Step 7 — CTA',title:'Call-to-action style?',sub:'Skipped for X/Twitter.',key:'ctaStyle',type:'single',
+    opts:[{ico:'🌿',lbl:'Soft CTA',sub:'Subtle suggestion'},{ico:'🎯',lbl:'Direct CTA',sub:'Clear action request'},{ico:'❓',lbl:'Question CTA',sub:'Close with engagement question'},{ico:'🚫',lbl:'No CTA'}]}
+};
+
+// Step flow maps
+const FLOW_A = ['s1','s2A','s3A','s4A','s5A','s6A','s7A','confirm'];
+const FLOW_B = ['s1','s2B','s3B','s4B','s5B','s6B','confirm'];
+const FLOW_C = ['s1','s2C','s3C','s4C','s5C','s6C','s7C','confirm'];
+
+function getFlow(){ return ST.path==='A'?FLOW_A:ST.path==='B'?FLOW_B:FLOW_C }
+
+const PROMPT_OPTS = {
+  A:[{id:'script',ico:'📝',lbl:'Script + Hook + Voice-Over',sub:'Full scroll-stopping script with hook and delivery notes'},
+     {id:'scene',ico:'🎬',lbl:'Scene Mapping + Shot Breakdown',sub:'Visual breakdown with timestamps and B-roll cues'},
+     {id:'broll',ico:'🖼️',lbl:'B-Roll + Captions + Hashtags',sub:'Platform-native formatting and hashtag strategy'},
+     {id:'motion',ico:'🎥',lbl:'Image & Motion Prompts',sub:'Generative visual prompts for scenes and thumbnails'}],
+  B:[{id:'core',ico:'🖼️',lbl:'Core Image Generation Prompt',sub:'Full prompt with style, mood, composition, model parameters'},
+     {id:'variation',ico:'🔁',lbl:'Variation / Refinement Prompt',sub:'Recommended for Ultra depth — controlled variations'}],
+  C:[{id:'draft',ico:'✍️',lbl:'Full Content Draft',sub:'Complete structured content ready to publish'},
+     {id:'seo',ico:'🔍',lbl:'SEO Optimization + Formatting Layer',sub:'Keyword strategy, meta elements, heading structure'}]
+};
+
+// ═══════════════════════════════════════
+// NICHE DATA
+// ═══════════════════════════════════════
+function getNiches(type, val){
+  if(type==='video'){
+    const v = (val||'').toLowerCase();
+    if(v.includes('youtube')) return {est:['Tech & Gadgets','Personal Finance','Health & Fitness','Cooking & Food','Gaming','Self-Improvement','Travel Vlogs','DIY & Crafts'],trnd:['AI Tools & Automation','Sustainable Living','Mental Health','Creator Economy','Side Hustles']};
+    if(v.includes('tiktok')) return {est:['Comedy & Skits','Fitness & Workout','Beauty & Makeup','Dance & Music','Cooking Hacks','Life Hacks','Fashion'],trnd:['AI Reactions','Day-in-My-Life','Duet Storytelling','Mindfulness','Financial Literacy']};
+    if(v.includes('instagram')) return {est:['Lifestyle & Aesthetic','Fashion & Style','Travel & Adventure','Food & Restaurants','Fitness & Wellness','Photography','Interior Design'],trnd:['Sustainable Fashion','Solo Travel','Micro-Wellness','Bookstagram','Digital Nomad']};
+    if(v.includes('linkedin')) return {est:['Leadership','Career Growth','Entrepreneurship','Marketing & Sales','Tech & Innovation','HR & Workplace','Finance'],trnd:['AI in the Workplace','Remote Work','Gen Z in Business','Creator Economy','Personal Branding']};
+    return {est:['Education','Entertainment','Business','Health','Technology','Lifestyle'],trnd:['AI Tools','Digital Wellbeing','Community Building','Sustainability']};
+  }
+  const f = (val||'').toLowerCase();
+  if(f.includes('blog')) return {est:['Technology','Personal Finance','Health & Wellness','Travel','Marketing & SEO','Self-Improvement','Parenting','Food'],trnd:['AI Workflows','Solopreneurship','No-Code Tools','Longevity','Climate Tech']};
+  if(f.includes('twitter')||f.includes('x /')) return {est:['Tech & Startups','Marketing','Productivity','Finance & Crypto','Commentary','Philosophy'],trnd:['AI Hot Takes','Build-in-Public','Contrarian Thinking','Founder Journeys','Digital Minimalism']};
+  if(f.includes('newsletter')) return {est:['Investing','Tech News','Career & Freelancing','Mental Health','Marketing Strategy','Book Summaries'],trnd:['AI Digest','Niche Expertise','Paid Newsletter','Future of Work','Personal Essays']};
+  if(f.includes('linkedin')) return {est:['Leadership','Career Advice','B2B Marketing','Entrepreneurship','Data & Analytics','HR & Culture'],trnd:['AI in Business','Fractional Work','Revenue Operations','Creator Monetization']};
+  return {est:['Technology','Business & Finance','Health','Education','Lifestyle','Marketing'],trnd:['AI Tools','Sustainability','Creator Economy','Digital Wellbeing']};
+}
+
+// ═══════════════════════════════════════
+// WIZARD RENDER
+// ═══════════════════════════════════════
+let curStep = 's1';
+
+function showStep(sid){
+  curStep = sid;
+  const step = STEPS[sid];
+  if(!step) return;
+
+  // Progress
+  const flow = getFlow();
+  const idx = flow.indexOf(sid);
+  const total = flow.length - 1; // exclude 'confirm'
+  const pct = Math.round(((idx+1)/total)*100);
+  document.getElementById('prog-lbl').textContent = step.tag;
+  document.getElementById('prog-num').textContent = `${idx+1} / ${total}`;
+  document.getElementById('prog-fill').style.width = pct+'%';
+
+  const box = document.getElementById('step-box');
+
+  if(step.type==='niche'){
+    const niches = (ST.path==='A') ? getNiches('video', ST.sel.platform) : getNiches('text', ST.sel.textFormat);
+    box.innerHTML = `
+      <div class="step-tag">${step.tag}</div>
+      <h2 class="step-title">${step.title}</h2>
+      <p class="step-sub">${step.sub}</p>
+      <div style="margin-bottom:1rem">
+        <div class="niche-lbl nl-est">── Established Niches (Evergreen & Proven) ──</div>
+        <div class="opts c2">${niches.est.map((n,i)=>`<button class="opt${ST.sel.niche===n?' sel':''}" onclick="pickNiche(this,'${esc(n)}')" type="button"><span class="onum">${i+1}</span><span class="olbl">${n}</span></button>`).join('')}</div>
+      </div>
+      <div>
+        <div class="niche-lbl nl-trnd">── 🔥 Trending Niches (AI-Estimated) ──</div>
+        <div class="opts c2">${niches.trnd.map((n,i)=>`<button class="opt${ST.sel.niche===n?' sel':''}" onclick="pickNiche(this,'${esc(n)}')" type="button"><span class="onum">🔥</span><span class="olbl">${n}</span></button>`).join('')}</div>
+        <p class="niche-note">⚠ Trending = AI-estimated. Enable web search for live trend data.</p>
+      </div>
+      <div class="btn-row" style="margin-top:1.25rem">
+        ${ST.history.length>0?'<button class="btn btn-s" onclick="stepBack()" type="button">← Back</button>':''}
+      </div>`;
+    return;
+  }
+
+  const cols = step.opts.length > 3 ? 'c2' : 'c1';
+  box.innerHTML = `
+    <div class="step-tag">${step.tag}</div>
+    <h2 class="step-title">${step.title}</h2>
+    <p class="step-sub">${step.sub}</p>
+    <div class="opts ${cols}">
+      ${step.opts.map((o,i)=>`<button class="opt${ST.sel[step.key]===o.lbl?' sel':''}" onclick="pickOpt(this,'${esc(o.lbl)}','${step.key}')" type="button">
+        <span class="onum">${i+1}</span>
+        ${o.ico?`<span class="oico">${o.ico}</span>`:''}
+        <span class="olbl">${o.lbl}${o.sub?`<div class="osub">${o.sub}</div>`:''}</span>
+      </button>`).join('')}
+    </div>
+    <div class="btn-row">
+      ${ST.history.length>0?'<button class="btn btn-s" onclick="stepBack()" type="button">← Back</button>':''}
+    </div>`;
+}
+
+function esc(s){ return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;') }
+
+function pickNiche(btn, val){
+  ST.sel.niche = val;
+  btn.closest('.opts, div').querySelectorAll('.opt').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  ST.history.push(curStep);
+  setTimeout(()=>nextStep(), 200);
+}
+
+function pickOpt(btn, val, key){
+  ST.sel[key] = val;
+  btn.closest('.opts').querySelectorAll('.opt').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  // Path branching on step 1
+  if(key==='contentType'){
+    ST.path = val==='Video'?'A':val==='Image'?'B':'C';
+  }
+  ST.history.push(curStep);
+  setTimeout(()=>nextStep(), 200);
+}
+
+function nextStep(){
+  const flow = getFlow();
+  const idx = flow.indexOf(curStep);
+  let next = flow[idx+1];
+  if(!next) return;
+
+  // Skip length for Twitter
+  if(next==='s5C' && ST.sel.textFormat && ST.sel.textFormat.includes('X /')){
+    ST.sel.length = 'Platform-fixed (280 chars/tweet)';
+    next = 's6C';
+  }
+  // Skip CTA for Twitter
+  if(next==='s7C' && ST.sel.textFormat && ST.sel.textFormat.includes('X /')){
+    ST.sel.ctaStyle = 'Platform-native';
+    next = 'confirm';
+  }
+
+  if(next==='confirm'){ showConfirm(); return; }
+  showStep(next);
+}
+
+function stepBack(){
+  if(!ST.history.length) return;
+  const prev = ST.history.pop();
+  // clear current selection
+  const step = STEPS[curStep];
+  if(step && step.key) delete ST.sel[step.key];
+  showStep(prev);
+}
+
+function backToWizard(){
+  showScreen('s-wizard');
+  showStep(curStep);
+}
+
+// ═══════════════════════════════════════
+// CONFIRM
+// ═══════════════════════════════════════
+function showConfirm(){
+  const s = ST.sel;
+  const rows = [
+    ['Content Type', s.contentType],['Platform / Model', s.platform||s.aiModel||s.textFormat],
+    ['Format', s.format||s.imageType||s.textFormat],['Niche', s.niche],['Tone', s.tone],
+    ['Script Style', s.scriptStyle],['Visual Style', s.visualStyle],['Mood', s.mood],
+    ['Language', s.language],['Prompt Depth', s.promptDepth],['Length', s.length],
+    ['Audience', s.audience],['CTA Style', s.ctaStyle]
+  ].filter(r=>r[1]);
+  document.getElementById('sum-rows').innerHTML = rows.map(r=>`<div class="sum-row"><span class="sum-k">${r[0]}</span><span class="sum-v">${r[1]}</span></div>`).join('');
+  showScreen('s-confirm');
+}
+
+function goToPromptSelect(){
+  const opts = PROMPT_OPTS[ST.path]||[];
+  ST.selPrompts = [];
+  document.getElementById('psel-opts').innerHTML = opts.map(o=>`<button class="opt" id="po-${o.id}" onclick="toggleP(this,'${o.id}')" type="button"><span class="ochk"></span><span class="oico">${o.ico}</span><span class="olbl">${o.lbl}<div class="osub">${o.sub}</div></span></button>`).join('');
+  document.getElementById('psel-err').classList.remove('on');
+  showScreen('s-pselect');
+  window.scrollTo({top:0,behavior:'instant'});
+}
+
+function toggleP(btn, id){
+  const i = ST.selPrompts.indexOf(id);
+  if(i===-1){ ST.selPrompts.push(id); btn.classList.add('sel'); }
+  else { ST.selPrompts.splice(i,1); btn.classList.remove('sel'); }
+  document.getElementById('psel-err').classList.remove('on');
+}
+
+// ═══════════════════════════════════════
+// ASSUMPTION ENGINE
+// ═══════════════════════════════════════
+function buildAE(s){
+  const p=(s.platform||s.aiModel||s.textFormat||'').toLowerCase();
+  const n=(s.niche||'').toLowerCase();
+  const t=(s.tone||'').toLowerCase();
+
+  let sit='',tried='',constraints='',goal='';
+
+  // Situation
+  if(p.includes('tiktok')&&n.includes('fitness')) sit='TikTok fitness creators face a brutal paradox: the platform rewards entertainment over education, yet purely entertaining fitness content rarely converts viewers into committed followers who track real results. The 7-second hook window is unforgiving — if the content does not immediately trigger dopamine (shock, relatability, or a bold claim), the algorithm buries it before 200 views. Most fitness creators are stuck posting workout clips that get saves but zero profile visits, because they optimize for content virality rather than building a creator-viewer relationship.';
+  else if(p.includes('youtube')&&n.includes('finance')) sit='YouTube Finance creators operate in one of the most trust-sensitive niches on the platform. Viewers make real money decisions from what they watch — a single misleading claim can permanently damage a channel. At the same time, the algorithm rewards watch-time and CTR, creating pressure toward provocative titles that attract clicks but burn trust. The challenge is making content compelling enough to win the algorithm without losing the credibility that drives long-term subscriber loyalty.';
+  else if(p.includes('instagram')) sit='Instagram creators face intense algorithmic pressure — the platform now prioritizes Reels over static posts, but lifestyle audiences still expect a curated, aspirational aesthetic. Creators who pivot fully to Reels often lose their visual identity; creators who stay static lose reach. The real battlefield is the 3-second video preview: if the first frame is not immediately beautiful or curiosity-inducing, the content dies in the Explore page despite genuine quality.';
+  else if(p.includes('linkedin')) sit='LinkedIn creators face a credibility-virality tension unique to this platform: the algorithm favors personal stories and emotional posts, but the audience is professional and will dismiss anything that feels performative or humble-braggy. Posts that go viral on LinkedIn do so because they revealed genuine vulnerability or a counterintuitive insight — not because they were algorithm-optimized. The challenge is writing content that feels authentic enough for LinkedIn\'s algorithm but professional enough that B2B prospects think "I should work with this person."';
+  else if(p.includes('midjourney')) sit=`Midjourney prompt engineering for ${s.niche||'this'} imagery requires balancing specificity with creative freedom. Overly rigid prompts produce technically correct but sterile images; overly vague prompts produce beautiful but off-brief results. The core challenge is knowing which elements Midjourney weights heavily (artistic style references, lighting descriptors, camera terms) versus which it interprets loosely (abstract emotions, symbolic concepts). Most creators waste generations testing instead of building a systematic prompt framework.`;
+  else if(p.includes('blog')) sit=`Tech blog creators face saturation: every keyword worth ranking for already has 10+ optimized articles from established publications. Writing "another" article puts you in direct competition with brands that have years of domain authority. The only viable path is hyper-specificity — going deeper on a narrower angle, or covering emerging topics before big publications assign them. Finding those uncovered angles before they become obvious is the real skill.`;
+  else sit=`Creators in the ${s.niche||'selected'} space on ${s.platform||s.textFormat||'this platform'} face a common challenge: producing content that is both platform-native (rewarded algorithmically) and deeply resonant with their specific audience. The gap between average and exceptional output in this niche is almost always about specificity, not production value. The creator who wins understands their audience's specific unspoken struggle and names it before the audience does.`;
+
+  // Already Tried
+  if(p.includes('tiktok')&&n.includes('fitness')) tried='Posting workout clips without a hook (algorithm kills these before 200 views). Using generic motivational quotes over workout footage (zero retention). Copying trending audio without relevance (viewers feel bait-and-switched). Filming in gyms without captions (60% watch muted). "What I eat in a day" without a unique angle — completely saturated format.';
+  else if(p.includes('youtube')&&n.includes('finance')) tried='Clickbait income titles that attract the wrong audience. Tutorials explaining concepts without relatable real-money examples. Reading from scripts with no personality. Videos about stock picks without disclaimers — triggers monetization restrictions. Copying high-energy editing styles for serious financial content — mismatched energy destroys credibility.';
+  else if(p.includes('linkedin')) tried='Starting posts with "I am excited to share..." (algorithm penalty). Posting job announcements as thought leadership. Sharing company news without personal insight. Using bullet-point lists for every post. Ending with "Thoughts?" when no specific question was asked — reads as lazy engagement-baiting.';
+  else tried=`In the ${s.niche||'this'} space, overused approaches include: generic templates that could apply to any niche, hooks that make bold promises the content doesn't deliver, production over substance, posting frequency without audience-specific depth, and copying competitors without a differentiated angle.`;
+
+  // Constraints
+  if(p.includes('tiktok')||(s.format&&s.format.includes('Short'))) constraints='Video duration: 15–90 seconds strictly. Hook window: first 7 seconds are make-or-break — no slow intros. Caption limit: 2,200 chars but algorithm rewards 150–300. Hashtags: 3–5 targeted only. Aspect ratio: 9:16 vertical. Audio: 80% watch muted — captions non-optional. Posting cadence: 3–5 posts/week minimum for growth phase.';
+  else if(p.includes('youtube')) constraints='Long-form: minimum 8 minutes for mid-roll ads, ideal 12–20 minutes for educational content. Thumbnail CTR target: above 6%. Title: 100 chars max (60 visible in search). Description: first 2 lines appear in search — front-load keywords. Chapters improve watch-time and SEO. End screen elements in final 20 seconds.';
+  else if(p.includes('linkedin')) constraints='Post character limit: 3,000 (700 visible before "See more" — hook must be in those 700). Algorithm rewards native content over external links. Optimal posting: Tuesday–Thursday, 7–9 AM or 12–1 PM. Image posts get 2x text reach. One post per day maximum. Engagement within first 60 minutes heavily influences distribution.';
+  else if(p.includes('midjourney')) constraints='Aspect ratio: --ar flag required. Quality: --q 2 for max detail. Style raw: --style raw removes Midjourney\'s aesthetic processing. Version: --v 6 current default. Negative prompts use --no flag. Focused prompts often outperform verbose ones.';
+  else if(p.includes('blog')||p.includes('article')) constraints='Target word count for SEO: 1,500–2,500 words. Reading level: Grade 8–10 (Flesch-Kincaid). H2 headings every 300–400 words. Meta description: 155 chars max. Internal links: minimum 3–5. Images: minimum 1 per 600 words with alt text.';
+  else constraints=`Platform constraints: respect character limits, format conventions, and audience attention spans specific to ${s.platform||s.textFormat||'this platform'}. Optimize for algorithm behaviors that reward content discovery in this niche.`;
+
+  // Real Goal
+  if(p.includes('tiktok')&&t.includes('motiv')) goal='Surface task → Create a 60-second motivational TikTok script.\nReal goal    → Make the viewer feel specifically seen in their current struggle — so they follow, save, and share because this video felt made for them personally, not a generic audience.';
+  else if(p.includes('youtube')&&n.includes('finance')) goal='Surface task → Write a YouTube script about a finance topic.\nReal goal    → Build enough trust in this single video that a first-time viewer becomes a subscriber who returns for financial decisions — because the video gave real actionable insight, not just engagement bait.';
+  else if(p.includes('linkedin')) goal='Surface task → Write a LinkedIn post on a professional topic.\nReal goal    → Generate meaningful engagement from decision-makers and position the creator as a go-to voice — so the next client or opportunity finds them through this content.';
+  else if(p.includes('midjourney')||p.includes('dall')) goal='Surface task → Generate a high-quality image using this AI model.\nReal goal    → Produce an image that requires zero inpainting or regeneration — immediately usable professionally, consistent across multiple generations.';
+  else if(p.includes('blog')) goal='Surface task → Write a blog post on the selected topic.\nReal goal    → Rank on Page 1 AND be genuinely worth reading when someone arrives — earning backlinks and shares organically, not just search traffic that immediately bounces.';
+  else goal=`Surface task → Create ${s.niche||'content'} for ${s.platform||s.textFormat||'this platform'}.\nReal goal    → Deliver specific value that makes the audience feel this was made for exactly their situation — driving follows, saves, shares, or conversions.`;
+
+  return {sit,tried,constraints,goal};
+}
+
+// ═══════════════════════════════════════
+// STATIC PROMPT BUILDER
+// ═══════════════════════════════════════
+function buildStaticPrompts(ids, s){
+  const ae = buildAE(s);
+  const out = [];
+
+  // PATH A
+  if(s.path==='A'){
+    if(ids.includes('script')) out.push({id:'script',name:'Script + Hook + Voice-Over',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 1 — SCRIPT + HOOK + VOICE-OVER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are a Senior Video Script Strategist with 11 years of experience writing ${s.format==='Short-Form'?'short-form':'long-form'} video scripts for ${s.platform} creators in the ${s.niche} niche. You specialize in ${(s.tone||'engaging').toLowerCase()} content delivery and ${(s.scriptStyle||'hook-based').toLowerCase()} script structure. You have written scripts that generated 50M+ views across ${s.platform} and you understand the psychological triggers that make ${s.niche} audiences stop scrolling.
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+${ae.tried}
+
+HARD CONSTRAINTS:
+${ae.constraints}
+Script Style: ${s.scriptStyle||'Hook-Based'} | Language: ${s.language||'English'} | Tone: ${s.tone||'Engaging'}
+
+REAL GOAL:
+${ae.goal}
+
+TASK:
+Write a complete ${s.format==='Short-Form'?'60–90 second':'8–12 minute'} ${s.scriptStyle||'hook-based'} ${s.platform} video script for the ${s.niche} niche. Tone must be ${(s.tone||'engaging').toLowerCase()} throughout. Written in ${s.language||'English'}. Include a scroll-stopping hook, opening promise, core content, and closing CTA. Every sentence must earn its place — no filler.
+
+OUTPUT FORMAT:
+[HOOK — 0:00–0:07]
+(First spoken line — unexpected statement, question, or bold claim specific to ${s.niche})
+
+[OPEN PROMISE — 0:07–0:20]
+(Exactly what they get from watching the full video)
+
+[MAIN CONTENT]
+${s.format==='Short-Form'?'(3 tight sections, 15–20 seconds each. No padding.)':'(Structured sections with timestamps. Include transition lines.)'}
+
+[CLOSE + CTA — final 15 seconds]
+(Specific action tied to the content, not generic "like and subscribe")
+
+[VOICE-OVER NOTES]
+(Pacing notes, emphasis words in CAPS, pause markers for spoken delivery)`});
+
+    if(ids.includes('scene')) out.push({id:'scene',name:'Scene Mapping + Shot Breakdown',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 2 — SCENE MAPPING + SHOT BREAKDOWN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are a Visual Director with 9 years producing ${s.platform} content in the ${s.niche} niche. You specialize in translating scripts into retention-optimized shot sequences. You have directed content for creators from 100K to 5M subscribers.
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+${ae.tried}
+
+HARD CONSTRAINTS:
+${ae.constraints}
+Platform: ${s.platform} | Format: ${s.format||'Video'} | Niche: ${s.niche}
+
+REAL GOAL:
+${ae.goal}
+
+TASK:
+Create a complete scene-by-scene visual breakdown for a ${s.format==='Short-Form'?'60–90 second':'10–15 minute'} ${s.platform} video in the ${s.niche} niche. For each scene, define shot type, what is on screen, energy level, and B-roll match. Make every visual decision intentional and retention-optimized.
+
+OUTPUT FORMAT:
+For each scene:
+[TIMESTAMP] — [SCENE NAME]
+Shot Type: (wide/medium/close-up/POV/text overlay/etc.)
+On Screen: (exactly what the viewer sees)
+Energy Level: (Low / Medium / High / Peak)
+B-Roll Match: (specific footage to cut to)
+Retention Hook: (why this shot keeps the viewer watching)
+---`});
+
+    if(ids.includes('broll')) out.push({id:'broll',name:'B-Roll + Captions + Hashtag Set',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 3 — B-ROLL + CAPTIONS + HASHTAG SET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are a Platform Distribution Specialist with 8 years optimizing ${s.platform} content for discovery and saves in the ${s.niche} niche. You understand caption psychology, ${s.platform} hashtag strategy, and B-roll sourcing for ${s.niche} creators at every budget level.
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+${ae.tried}
+
+HARD CONSTRAINTS:
+${ae.constraints}
+Platform: ${s.platform} | Tone: ${s.tone||'Engaging'} | Niche: ${s.niche}
+
+REAL GOAL:
+${ae.goal}
+
+TASK:
+Generate a complete B-roll shot list, platform-native video caption, and strategic hashtag pack for a ${(s.tone||'engaging').toLowerCase()} ${s.niche} video on ${s.platform}. Every element must be immediately usable — no placeholders.
+
+OUTPUT FORMAT:
+
+B-ROLL SHOT LIST:
+(10–15 specific shots with source suggestions — stock sites, phone capture, screen recordings)
+
+CAPTION:
+(Platform-native. Hook in line 1. Body with line breaks. CTA before hashtags. Character count noted.)
+
+HASHTAG STRATEGY:
+Tier 1 — Niche (under 500K posts): [list]
+Tier 2 — Mid (500K–5M posts): [list]
+Tier 3 — Broad (5M+ posts): [list]
+Total: 8–12 hashtags for ${s.platform}`});
+
+    if(ids.includes('motion')) out.push({id:'motion',name:'Image & Motion Prompts',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 4 — IMAGE & MOTION PROMPTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are an AI Visual Prompt Engineer with 7 years generating thumbnails, scene concepts, and motion graphics for ${s.platform} creators in the ${s.niche} space. You know exactly how to prompt generative AI tools to produce visuals that stop the scroll and match ${s.platform}'s aesthetic expectations for ${s.niche} content.
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+${ae.tried}
+
+HARD CONSTRAINTS:
+${ae.constraints}
+Platform: ${s.platform} | Niche: ${s.niche} | Tone: ${s.tone||'Engaging'}
+
+REAL GOAL:
+${ae.goal}
+
+TASK:
+Generate three prompts: (1) thumbnail image, (2) scene/B-roll concept, (3) motion/animation prompt for a ${s.niche} video on ${s.platform}.
+
+OUTPUT FORMAT:
+
+THUMBNAIL PROMPT (for DALL·E / Midjourney / Stable Diffusion):
+[Full prompt — subject, style, color, emotion, aspect ratio 16:9]
+
+SCENE IMAGE PROMPT (for B-roll concept):
+[Full prompt — setting, lighting, composition, mood, camera angle]
+
+MOTION PROMPT (for Runway / Kling / Pika):
+[Subject], [movement], [camera motion], [duration: X sec], [style: cinematic], [loop: yes/no], [aspect ratio: 16:9 or 9:16]`});
+  }
+
+  // PATH B
+  if(s.path==='B'){
+    const isMJ = (s.aiModel||'').includes('Midjourney');
+    const isSD = (s.aiModel||'').includes('Stable');
+    const isUltra = (s.promptDepth||'').includes('Ultra');
+
+    if(ids.includes('core')) out.push({id:'core',name:'Core Image Generation Prompt',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 1 — CORE IMAGE GENERATION PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are a Master AI Image Prompt Engineer with 8 years producing professional visuals using ${s.aiModel} for ${(s.imageType||'image').toLowerCase()} creation. You specialize in ${(s.visualStyle||'high-quality').toLowerCase()} aesthetics with ${(s.mood||'compelling').toLowerCase()} moods. You know exactly how ${s.aiModel}'s model weights respond to different prompt structures.
+
+SITUATION:
+Common challenge in ${s.aiModel} for ${s.imageType||'this type'}: vague subject descriptions produce generic outputs, missing lighting descriptors leave the model guessing, not specifying camera angle or lens type for realistic images, and omitting negative prompts that filter known model artifacts.
+
+ALREADY TRIED / RULED OUT:
+Vague prompts like "a beautiful image of X" — model interprets loosely. Style references without specificity — produces average outputs. Missing composition directives — model defaults to centered, flat compositions. Describing mood without lighting — emotional intent gets lost. Ignoring model-specific syntax — missing --ar flags, --style, --no parameters.
+
+HARD CONSTRAINTS:
+Model: ${s.aiModel} | Type: ${s.imageType||'Image'} | Style: ${s.visualStyle||'Unspecified'} | Mood: ${s.mood||'Unspecified'} | Depth: ${s.promptDepth||'Standard'}
+${isMJ?'Midjourney: --ar [ratio] --v 6 --style raw --q 2 --no [negatives] required':''}
+${isSD?'Stable Diffusion: separate positive and negative prompts, specify sampler':''}
+
+REAL GOAL:
+Surface task → Generate a ${s.visualStyle||''} ${s.imageType||'image'} with ${s.mood||''} mood using ${s.aiModel}.
+Real goal    → Produce an image requiring zero inpainting — immediately usable professionally, with consistent style reproducible across multiple generations.
+
+TASK:
+Generate a complete, copy-paste ready image prompt for ${s.aiModel} that produces a ${(s.imageType||'image').toLowerCase()} in ${(s.visualStyle||'selected').toLowerCase()} style with ${(s.mood||'compelling').toLowerCase()} mood at ${s.promptDepth||'Standard'} depth.
+
+OUTPUT FORMAT:
+${isUltra?`
+SUBJECT: [Detailed subject with specific attributes]
+COMPOSITION: [Framing, rule of thirds, focal point, depth of field]
+LIGHTING: [Type, direction, quality, color temperature]
+CAMERA: [Lens type, focal length, aperture, shooting distance]
+STYLE REFERENCE: [Specific aesthetic or artist reference]
+COLOR PALETTE: [Dominant colors, accents, saturation level]
+ATMOSPHERE: [Environmental details, time of day, mood elements]
+${isMJ?`\nFULL MIDJOURNEY PROMPT:\n[complete text] --ar 16:9 --v 6 --style raw --q 2 --no [negative elements]`:''}
+${isSD?`\nPOSITIVE PROMPT: [full prompt]\nNEGATIVE PROMPT: [blurry, deformed, watermark, etc.]\nSAMPLER: DPM++ 2M Karras | Steps: 30 | CFG: 7`:''}
+${!isMJ&&!isSD?'\nCOMPLETE PROMPT:\n[full ready-to-paste prompt]':''}`:`COMPLETE PROMPT:\n[Subject] — [Style descriptors] — [Mood and lighting] — [Composition notes]${isMJ?' --ar 16:9 --v 6':''}`}`});
+
+    if(ids.includes('variation')) out.push({id:'variation',name:'Variation / Refinement Prompt',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 2 — VARIATION / REFINEMENT PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are an AI Image Refinement Specialist with expertise in iterative prompt engineering for ${s.aiModel}. You know which elements to lock (keep consistent) and which to vary for controlled creative exploration without losing visual identity.
+
+SITUATION:
+You have a core image generated. The visual foundation is established. Now you need controlled variations — maintaining style consistency while testing different compositional or mood choices without starting from scratch.
+
+ALREADY TRIED / RULED OUT:
+Changing too many variables at once (produces incoherent results). Using "make it better" (vague — model ignores or over-interprets). Regenerating without referencing seed (loses consistency entirely). Describing changes in abstract terms without technical direction.
+
+HARD CONSTRAINTS:
+Model: ${s.aiModel} | Style to maintain: ${s.visualStyle||'established'} | Depth: ${s.promptDepth||'Standard'}
+${isMJ?'Use --seed [from original] for consistency. Use :: weighting for emphasis.':''}
+
+REAL GOAL:
+Surface task → Create variations of the original image with controlled changes.
+Real goal    → Expand the creative direction systematically — exploring 3 distinct variations that each offer a genuinely different interpretation while remaining clearly part of the same visual series.
+
+TASK:
+Generate 3 variation prompts based on the core image — each targeting a different adjustment: (1) lighting/mood shift, (2) composition/framing change, (3) style intensity adjustment.
+
+OUTPUT FORMAT:
+VARIATION 1 — LIGHTING/MOOD SHIFT:
+What changes: [specific change]
+What stays locked: [locked elements]
+Full prompt: [complete prompt]
+
+VARIATION 2 — COMPOSITION/FRAMING:
+What changes: [specific change]
+What stays locked: [locked elements]
+Full prompt: [complete prompt]
+
+VARIATION 3 — STYLE INTENSITY:
+What changes: [specific change]
+What stays locked: [locked elements]
+Full prompt: [complete prompt]
+
+LOCK ELEMENTS (repeat in all variations):
+[List consistent elements]`});
+  }
+
+  // PATH C
+  if(s.path==='C'){
+    if(ids.includes('draft')) out.push({id:'draft',name:'Full Content Draft',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 1 — FULL CONTENT DRAFT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are a Senior Content Strategist and Writer with 10 years of experience producing ${s.textFormat||'content'} for the ${s.niche} niche. You specialize in ${(s.tone||'engaging').toLowerCase()} writing for ${(s.audience||'targeted').toLowerCase()} audiences. You have written content featured in leading publications in the ${s.niche} space and understand what makes ${s.textFormat||'this format'} genuinely worth reading versus skimmable filler.
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+${ae.tried}
+
+HARD CONSTRAINTS:
+${ae.constraints}
+Format: ${s.textFormat||'Content'} | Niche: ${s.niche} | Tone: ${s.tone||'Engaging'}
+Target length: ${s.length==='Short'?'300–600':s.length==='Medium'?'800–1200':s.length==='Long'?'1500–2500':s.length==='Deep Dive'?'3000+':'Appropriate'} words
+Audience: ${s.audience||'Targeted'} | CTA Style: ${s.ctaStyle||'Natural'}
+${s.textFormat&&s.textFormat.includes('Twitter')?'Format: numbered thread, each tweet max 280 chars, first tweet must function as standalone hook':''}
+
+REAL GOAL:
+${ae.goal}
+
+TASK:
+Write a complete, publish-ready ${s.textFormat||'content piece'} about ${s.niche} in a ${(s.tone||'engaging').toLowerCase()} tone for a ${(s.audience||'target').toLowerCase()} audience. Target ${s.length==='Short'?'300–600':s.length==='Medium'?'800–1200':s.length==='Long'?'1500–2500':'3000+'} words. Deliver genuine value — no padding.
+
+OUTPUT FORMAT:
+${s.textFormat&&s.textFormat.includes('Blog')?`HEADLINE: [SEO-optimized, specific, click-worthy]
+META DESCRIPTION: [155 chars, includes primary keyword]
+---
+INTRODUCTION: [Hook + problem + promise]
+MAIN SECTIONS: [H2 headings every 300–400 words]
+CONCLUSION: [Key insight summary + ${s.ctaStyle||'natural'} close]`:s.textFormat&&s.textFormat.includes('Twitter')?`TWEET 1 (Hook): [Standalone shareable statement]
+TWEET 2–N: [Each tweet = one clear idea. Use 1/ 2/ 3/ numbering]
+FINAL TWEET: [${s.ctaStyle||'Strong'} close with follow/share ask]`:`OPENING: [Hook your reader immediately]
+BODY: [Structured content delivery]
+CLOSE: [${s.ctaStyle||'Natural'} conclusion]`}`});
+
+    if(ids.includes('seo')) out.push({id:'seo',name:'SEO Optimization + Formatting Layer',text:`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT 2 — SEO OPTIMIZATION + FORMATTING LAYER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROLE:
+You are an SEO Content Strategist with 9 years ranking ${s.textFormat||'content'} in the ${s.niche} niche for high-intent keywords. You understand both technical SEO (schema, meta, heading hierarchy) and content SEO (semantic relevance, E-E-A-T signals, internal linking strategy).
+
+SITUATION:
+${ae.sit}
+
+ALREADY TRIED / RULED OUT:
+Keyword stuffing — penalized heavily by Google's Helpful Content Update. Meta descriptions that are just the first sentence (missed CTR opportunity). Heading structures that are marketing copy instead of search-intent aligned. Publishing without internal links (kills crawlability and time-on-site). Ignoring schema markup for articles and how-to content.
+
+HARD CONSTRAINTS:
+Format: ${s.textFormat||'Content'} | Niche: ${s.niche} | Audience: ${s.audience||'Targeted'}
+Word count: ${s.length==='Short'?'300–600':s.length==='Medium'?'800–1200':s.length==='Long'?'1500–2500':'3000+'} words
+Flesch-Kincaid target: Grade ${s.audience&&s.audience.includes('Expert')?'12+':'8–10'}
+Internal links: minimum 3–5 | Primary keyword in: title, first 100 words, one H2, meta description
+
+REAL GOAL:
+Surface task → Optimize a ${s.niche} ${s.textFormat||'content piece'} for search performance.
+Real goal    → Achieve dual optimization: rank well AND deliver enough value that visitors read to the end and share — because low bounce rate and engagement time are the real 2024+ ranking signals.
+
+TASK:
+Create a complete SEO optimization layer for a ${s.niche} ${s.textFormat||'piece'}. Include keyword strategy, meta elements, heading structure, internal link recommendations, and readability audit.
+
+OUTPUT FORMAT:
+PRIMARY KEYWORD: [Target keyword]
+SECONDARY KEYWORDS: [3–5 semantic variations]
+LSI TERMS TO INCLUDE: [5–8 related terms]
+
+META ELEMENTS:
+Title Tag (60 chars): [SEO title]
+Meta Description (155 chars): [Compelling + keyword-rich]
+URL Slug: [short, keyword-focused]
+
+HEADING STRUCTURE:
+H1: [Page title]
+H2: [Section heading]
+H2: [Section heading]
+H2: [Section heading]
+
+INTERNAL LINK OPPORTUNITIES: [3–5 suggested anchor text + topic]
+SCHEMA RECOMMENDATION: [Article / HowTo / FAQ]
+
+READABILITY AUDIT:
+[ ] Sentences under 25 words average
+[ ] Paragraphs under 4 lines
+[ ] Active voice dominant
+[ ] Transition words used between sections
+[ ] First 100 words contain primary keyword`});
+  }
+
+  return out;
+}
+
+// ═══════════════════════════════════════
+// GENERATE
+// ═══════════════════════════════════════
+async function doGenerate(){
+  if(!ST.selPrompts.length){ document.getElementById('psel-err').classList.add('on'); return; }
+  document.getElementById('loading').classList.add('on');
+  try {
+    let prompts;
+    if(ST.mode==='gemini'){
+      prompts = await geminiGenerate();
+    } else {
+      await new Promise(r=>setTimeout(r,700));
+      prompts = buildStaticPrompts(ST.selPrompts, {...ST.sel, path:ST.path});
+    }
+    renderOutput(prompts);
+  } catch(e){
+    document.getElementById('loading').classList.remove('on');
+    const eb = document.getElementById('out-err');
+    eb.innerHTML = `<span>⚠</span><span>${e.message||'Generation failed'}. Falling back to Static Mode.</span>`;
+    eb.classList.add('on');
+    await new Promise(r=>setTimeout(r,600));
+    const prompts = buildStaticPrompts(ST.selPrompts, {...ST.sel, path:ST.path});
+    renderOutput(prompts);
+  }
+  document.getElementById('loading').classList.remove('on');
+}
+
+async function geminiGenerate(){
+  const key = localStorage.getItem('pf_key');
+  if(!key) throw new Error('No API key. Add your Gemini key in Settings ⚙');
+  const s = ST.sel;
+  const ctx = `You are a Senior Content Workflow Architect. Generate prompts using Context Stacking structure for ONLY these types: ${ST.selPrompts.join(', ')}.
+Path: ${ST.path} | Selections: ${JSON.stringify(s)}
+For each selected prompt use EXACTLY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ PROMPT [N] — [NAME]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ROLE: [Niche + platform + tone specific]
+SITUATION: [2-3 sentences specific to this exact niche+platform]
+ALREADY TRIED / RULED OUT: [2-3 specific named bad practices]
+HARD CONSTRAINTS: [Platform limits with real numbers]
+REAL GOAL: Surface task → [task]. Real goal → [deeper goal]
+TASK: [Specific, actionable, references all selections]
+OUTPUT FORMAT: [Exact structure with labels and lengths]
+CRITICAL: Every layer must be niche-specific. Generate ONLY selected types.`;
+
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[{role:'user',parts:[{text:ctx}]}],generationConfig:{temperature:0.7,maxOutputTokens:8192}})
+  });
+  if(!resp.ok){ const e=await resp.json(); throw new Error(e.error?.message||`API error ${resp.status}`) }
+  const data = await resp.json();
+  const txt = data.candidates?.[0]?.content?.parts?.[0]?.text||'';
+  const parts = txt.split(/(?=━+\n⚡ PROMPT)/g).filter(p=>p.includes('PROMPT'));
+  return parts.map((p,i)=>{
+    const nm = p.match(/⚡ PROMPT \d+ [—-] (.+)/);
+    return {id:ST.selPrompts[i]||`p${i}`,name:nm?nm[1].trim():`Prompt ${i+1}`,text:p.trim()};
+  }).filter(p=>p.text.length>50);
+}
+
+function renderOutput(prompts){
+  const allOpts = PROMPT_OPTS[ST.path]||[];
+  const skipped = allOpts.filter(o=>!ST.selPrompts.includes(o.id)).map(o=>o.lbl);
+  document.getElementById('out-prompts').innerHTML = prompts.map(p=>`
+    <div class="out-block">
+      <div class="out-bh"><span class="out-tag">⚡ Generated</span><span class="out-name">${p.name}</span></div>
+      <div class="prompt-txt">${escH(p.text)}</div>
+    </div>`).join('');
+  document.getElementById('wf-sum-box').innerHTML = `
+    <div class="wf-sum">
+      <div class="wf-sum-h">📊 Workflow Summary</div>
+      <table>
+        <tr><td>Prompts Generated</td><td>${prompts.length} selected / ${allOpts.length} total</td></tr>
+        <tr><td>Prompts Skipped</td><td>${skipped.length?skipped.join(', '):'None'}</td></tr>
+        <tr><td>Execution Order</td><td>${prompts.map((_,i)=>`Prompt ${i+1}`).join(' → ')}</td></tr>
+        <tr><td>Mode</td><td>${ST.mode==='gemini'?'🤖 Gemini AI':'⚡ Static Templates'}</td></tr>
+        <tr><td>Platform / Model</td><td>${ST.sel.platform||ST.sel.aiModel||ST.sel.textFormat||'—'}</td></tr>
+        <tr><td>Niche</td><td>${ST.sel.niche||'—'}</td></tr>
+        <tr><td>Reusability</td><td>Each prompt usable independently</td></tr>
+      </table>
+    </div>`;
+  document.getElementById('out-err').classList.remove('on');
+  showScreen('s-output');
+}
+
+// ═══════════════════════════════════════
+// OUTPUT ACTIONS
+// ═══════════════════════════════════════
+function copyAll(){
+  const blocks = document.querySelectorAll('.prompt-txt');
+  const text = Array.from(blocks).map(b=>b.innerText).join('\n\n'+'═'.repeat(48)+'\n\n');
+  navigator.clipboard.writeText(text).then(()=>toast('✓ Copied to clipboard!'));
+}
+
+function restart(){
+  ST.mode=null;ST.path=null;ST.sel={};ST.selPrompts=[];ST.history=[];
+  curStep='s1';
+  document.getElementById('mode-badge').className='mode-badge mb-hide';
+  document.getElementById('btn-settings').style.display='none';
+  showScreen('s-home');
+}
+
+// ═══════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════
+function openModal(){
+  const k=localStorage.getItem('pf_key');
+  if(k) document.getElementById('api-inp').value=k;
+  document.getElementById('modal-mode-txt').textContent = ST.mode==='gemini'?'Gemini AI Mode':'Static Mode';
+  document.getElementById('switch-lbl').textContent = ST.mode==='static'?'Gemini':'Static';
+  document.getElementById('modal-settings').classList.add('on');
+}
+function closeModal(){ document.getElementById('modal-settings').classList.remove('on') }
+function saveKey(){
+  const k=document.getElementById('api-inp').value.trim();
+  if(!k){toast('Enter a valid API key','err');return}
+  localStorage.setItem('pf_key',k); toast('✓ API key saved'); closeModal();
+}
+function clearKey(){ localStorage.removeItem('pf_key'); document.getElementById('api-inp').value=''; toast('Key cleared') }
+function switchMode(){
+  closeModal();
+  ST.mode = ST.mode==='static'?'gemini':'static';
+  updateModeBadge();
+  toast('Switched to '+(ST.mode==='static'?'Static':'Gemini')+' Mode');
+}
+function updateModeBadge(){
+  const b=document.getElementById('mode-badge');
+  b.className='mode-badge '+(ST.mode==='static'?'mb-static':'mb-gemini');
+  b.textContent=ST.mode==='static'?'⚡ Static Mode':'🤖 Gemini Mode';
+}
+
+// ═══════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function toast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(type?' '+type:'')+' on';
+  setTimeout(()=>t.classList.remove('on'),3000);
+}
+function escH(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+// ═══════════════════════════════════════
+// INIT — Wire up all events properly
+// ═══════════════════════════════════════
+function startMode(mode){
+  ST.mode=mode; ST.sel={}; ST.history=[]; curStep='s1';
+  document.getElementById('btn-settings').style.display='flex';
+  updateModeBadge();
+  if(mode==='gemini'&&!localStorage.getItem('pf_key')){ openModal(); toast('Add your Gemini API key to continue','err'); }
+  showStep('s1');
+  showScreen('s-wizard');
+}
+
+document.getElementById('btn-static').addEventListener('click',()=>startMode('static'));
+document.getElementById('btn-gemini').addEventListener('click',()=>startMode('gemini'));
+document.getElementById('btn-settings').addEventListener('click',openModal);
+document.getElementById('modal-settings').addEventListener('click',function(e){ if(e.target===this) closeModal() });
+</script>
+</body>
+</html>
